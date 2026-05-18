@@ -1,3 +1,5 @@
+![handoff — pause work in one session, pick up cleanly in the next](assets/header.svg)
+
 # handoff
 
 A Claude Code skill that captures the state of a long session into a structured document, so a fresh session can pick up cleanly without re-deliberating from scratch.
