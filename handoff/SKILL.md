@@ -39,6 +39,9 @@ The handoff document is an interface between two Claude instances across time. T
 Created: <YYYY-MM-DD HH:MM TZ>
 Working dir: <absolute path>
 Status: <in-progress | blocked | ready-to-resume>
+Base commit: <`git rev-parse HEAD`, or "none — not a git repo">
+Working tree: <"clean" | "dirty (N files — see Verification)">
+Branch: <`git branch --show-current`, or "detached HEAD", or "none — not a git repo">
 
 ## Goal
 <one paragraph. What we are actually trying to accomplish, framed as it stands now (not the original ask if it's drifted).>
@@ -59,13 +62,16 @@ Status: <in-progress | blocked | ready-to-resume>
 - <approach tried> — <why it didn't work. One line.>
 
 ## Verification before resuming
-Run these to confirm state hasn't drifted since this doc was written:
+Run these to confirm state hasn't drifted since this doc was written. The first three are **mandatory when the work is git-tracked** — they catch the cross-day or cross-machine case where the doc's `file:line` refs would otherwise point at the wrong code.
 
 \`\`\`bash
-<command>
+git rev-parse HEAD         # Expected: <Base commit from header>
+git status --porcelain     # Expected: <verbatim porcelain output captured at write-time, or empty if clean>
+git branch --show-current  # Expected: <Branch from header>
+<additional command(s) — tests, greps, runtime checks>
 \`\`\`
 
-Expected: <one line on what "good" looks like.>
+Expected: <one line on what "good" looks like, beyond the git checks.>
 
 ## Next steps
 1. <concrete first action, with file:line where applicable>
@@ -78,6 +84,7 @@ Expected: <one line on what "good" looks like.>
 - All sections must be present as headers.
 - `Dead ends` and `Open questions` may be left empty (a single line `_none_` is fine). Other sections must have content.
 - `Done` and `In progress` may have only one of them populated if the work hasn't reached the other state yet.
+- `Base commit`, `Working tree`, and `Branch` header fields are mandatory when the working dir is a git repo. Substitute the literal `"none — not a git repo"` placeholders when it isn't.
 
 ### Writer obligations (Mode 1)
 
@@ -85,14 +92,19 @@ Expected: <one line on what "good" looks like.>
 - Use file:line links (`[label](path:line)`) in `Done` and `In progress` entries wherever a specific location matters. Vague entries like "fixed the auth bug" are insufficient — name the file.
 - The `Next steps` list must lead with a *concrete* first action (file to open, function to read, change to make), not an objective ("continue the feature").
 - `Verification before resuming` commands must be safe to run blind: read-only or idempotent. No deploys, no destructive git, no irreversible writes.
+- Capture `Base commit` (from `git rev-parse HEAD`), `Working tree` state, and `Branch` in the header. The first three verification commands MUST be the git-state checks (`git rev-parse HEAD`, `git status --porcelain`, `git branch --show-current`), with expected values matching the header. If the working dir is not a git repo, write the `"none — not a git repo"` placeholders and skip the three git checks.
 - Total length ≤ ~150 lines.
-- **Do not commit to git.** Do not run `git add`, `git commit`, or any state-mutating git command as part of writing the handoff.
+- **Don't auto-commit.** Do not run `git add`, `git commit`, or any state-mutating git command without explicit user opt-in. If the user signals cross-machine resume intent (e.g., "I'll continue on my other laptop") and the working tree is dirty, prompt before writing — see the cross-machine edge case below. The default remains: no commits as a side effect of writing the handoff.
 - If a `HANDOFF.md` already exists, rename it to `HANDOFF.<original-Created-date>.md` before writing the new one — unless the user explicitly says to overwrite. Preserving history is cheap.
 
 ### Reader obligations (Mode 2)
 
 - Read `HANDOFF.md` (or the path the user named) before doing anything else.
 - Execute the `Verification before resuming` commands **first**, before any edits or planning. If a command fails or its output diverges from the doc's expectation, **stop and surface the discrepancy** — do not silently adapt. The doc reflects a past moment; the world may have moved.
+- Specifically for the three git-state checks:
+  - If `git rev-parse HEAD` doesn't match `Base commit` → stop. The `file:line` refs in `Done` / `In progress` were captured against a different commit and may not resolve to the right code. Surface the divergence; offer to check out the `Base commit` or rewrite the next steps against the current commit.
+  - If `git status --porcelain` doesn't match what the doc declared → stop. Uncommitted work captured at write-time is either not on this machine, or has been modified since. Surface and ask the user to reconcile (pull the patch, apply a stash, or revise the doc).
+  - Branch mismatch alone is less critical — flag it, ask the user if it's intentional (e.g., they're on a worktree), and continue if confirmed.
 - Acknowledge in ≤3 lines: the goal, where things stand, and the next concrete action you intend to take. Then wait for the user to confirm — unless they already said "just continue" or equivalent.
 - Treat the doc as a snapshot, not as truth. If the code at a cited `file:line` doesn't match what the doc says is there, the *code* is the source of truth. Flag the divergence to the user.
 - `Open questions for the user` are time-stamped. If the question may have been answered offline since the doc was written, ask the user before acting on it.
@@ -101,7 +113,7 @@ Expected: <one line on what "good" looks like.>
 
 - **Missing required section** → treat the handoff as malformed. Show the user what's missing and ask whether to proceed anyway or rewrite.
 - **Multiple in-progress threads in one doc** → each thread should have its own entry. Pick one to resume (or ask the user which) — don't try to juggle both.
-- **Verification commands fail** → stop. Report what diverged. Do not improvise a fix that touches the next-steps work, because the diverged state may invalidate it.
+- **Verification commands fail** → stop. Report what diverged. Do not improvise a fix that touches the next-steps work, because the diverged state may invalidate it. Subcase: if the failure is on `git rev-parse HEAD` or `git status --porcelain` specifically, the cited `file:line` references in `Done` / `In progress` are aimed at a different state of the code than what's checked out. Resuming requires either checking out the `Base commit`, or rewriting the next steps against current code with the user's confirmation — don't pick one silently.
 - **Doc is more than ~7 days old** → flag the staleness up front and recommend writing a fresh handoff from scratch with the user, rather than acting on stale assumptions.
 
 ---
@@ -175,3 +187,10 @@ Follow `Next steps` in order. If a step turns out to be wrong because state has 
 **Terminate but nothing has happened yet.** Push back: "There's not much state to capture yet. Want me to write one anyway, or pick this up later?"
 
 **Emergency handoff (context about to overflow).** Prioritize `In progress` and `Next steps`. Decisions and dead ends are nice-to-have under time pressure; specificity about *where the cursor is* matters most.
+
+**Cross-machine resume with a dirty tree.** If the user says they'll resume on a different laptop and `git status --porcelain` is non-empty, the cited `file:line` references in the handoff won't resolve there — those edits live only on this machine. Before writing the doc, ask which option:
+1. **Commit + push first** (recommended). The `Base commit` in the header then points at code that exists on the other laptop after a `git pull`.
+2. **Generate a `handoff.patch` alongside** (`git diff > handoff.patch`, and `git diff --staged >> handoff.patch` if anything is staged). The reader on the other laptop applies it before resuming.
+3. **Write the handoff anyway** and mark `Working tree: dirty (laptop-local)`. The next-steps narrative will be readable, but the cited lines will diverge until the user returns to this machine.
+
+Don't pick silently — the trade-off (commit hygiene vs. patch sprawl vs. laptop-local scope) is the user's call.
