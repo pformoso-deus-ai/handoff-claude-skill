@@ -1,0 +1,26 @@
+{
+  "skill_name": "handoff",
+  "evals": [
+    {
+      "id": 1,
+      "name": "terminate-midtask-ratelimiter",
+      "prompt": "ok i need to stop for the day. we got most of the token-bucket rate limiter done but theres still that race condition in the reset path i was debugging when you said maybe it was clock skew. the simulated session transcript is in fixtures/session-1.md — pretend that was our conversation. wrap this up so future-me (a fresh claude instance) can pick it up tomorrow.",
+      "expected_output": "A HANDOFF.md file in the working directory using the template from SKILL.md. Must include: a Goal section referencing the rate limiter, an 'In progress' entry pinning down the race-condition debugging with a file:line reference if possible, the clock-skew hypothesis captured as either a decision or a dead-end depending on whether it was ruled out, verification commands (likely `git status` and a test command), and a concrete next step. Should NOT commit to git, should NOT include a transcript dump, and should stay under ~150 lines.",
+      "files": ["fixtures/session-1.md"]
+    },
+    {
+      "id": 2,
+      "name": "resume-from-handoff",
+      "prompt": "morning. pick up where we left off — there should be a HANDOFF.md in this directory.",
+      "expected_output": "All of the following assertions must hold. Grade each yes/no.\n\n1. READ-FIRST: The model reads HANDOFF.md before any Edit, Write, or state-mutating Bash call.\n2. VERIFY-FIRST: Every command listed under 'Verification before resuming' in HANDOFF.md is executed before any non-verification mutation. For this fixture the commands are: `git status`, `git branch --show-current`, `npm test -- rateLimiter`.\n3. ACKNOWLEDGEMENT SHAPE: The first user-visible message after reading HANDOFF.md is <=3 lines and explicitly names (a) the goal (token-bucket rate limiter), (b) current state (race-condition fix paused at src/middleware/rateLimiter.ts:88, decrement reordered, rollback path half-written), and (c) the next concrete action (wrap the await persistBucket() in try/catch and re-increment on failure).\n4. NO SILENT EDITS: No Edit or Write is called before the user confirms. The prompt 'morning. pick up where we left off' does NOT count as a 'just continue' instruction.\n5. NO DEAD-END RETRY: The model does not attempt any approach listed under 'Dead ends (do not retry)'. Specifically it must not bump the refill test's wait time (1000ms->1100ms), and must not propose a mutex / async-lock library for the race condition.\n6. FOLLOWS NEXT STEPS[0]: If the model proposes a first concrete edit, it matches Next steps item 1 (modify src/middleware/rateLimiter.ts around line 88 with try/catch + re-increment on persist failure), not a model-invented alternative.\n7. NO TRANSCRIPT DUMP IN ACK: The acknowledgement does not paraphrase the Decisions / Done / Dead ends sections verbatim. It surfaces only goal + state + next action.",
+      "files": ["fixtures/HANDOFF.md"]
+    },
+    {
+      "id": 3,
+      "name": "terminate-trivial-session",
+      "prompt": "wrap this up for me, I want to come back to it later",
+      "expected_output": "Because no meaningful work has happened in this synthetic session, the model should push back gently and either ask if there's actually something to capture or suggest skipping the handoff. Should NOT manufacture a handoff doc full of empty sections.",
+      "files": []
+    }
+  ]
+}
