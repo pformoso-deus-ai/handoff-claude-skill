@@ -2,6 +2,17 @@
 
 A Claude Code skill that captures the state of a long session into a structured document, so a fresh session can pick up cleanly without re-deliberating from scratch.
 
+## The handoff contract
+
+The handoff document is a **contract between two Claude instances across time** — the one ending a session and the one resuming it. Both sides commit to the same shape, so the resume path can *act* on the doc instead of just reading it.
+
+- **Writer** (ending a session): produces a fixed set of sections in fixed order — goal, where work was paused, decisions made *with rationale*, dead ends to avoid, verification commands, concrete next step. Uses `file:line` references, not vague summaries. Captures the current commit, working-tree state, and branch in the header so the reader can detect drift across days or machines. No automatic git operations.
+- **Reader** (resuming): reads the doc before anything else. Runs the verification commands *first* — including the commit-state checks — and stops to surface any divergence rather than silently adapting. Treats the doc as a snapshot: if the code at a cited line doesn't match, the code wins.
+
+This shape is what makes resume *act-able*, not just readable. A handoff that loses the rationale behind a decision, fudges the cursor location, or omits the verification step quietly breaks the contract — and the next session ends up re-deliberating or guessing.
+
+Full spec lives in [handoff/SKILL.md](handoff/SKILL.md).
+
 ## Install
 
 **macOS / Linux**
