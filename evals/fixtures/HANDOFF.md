@@ -2,6 +2,9 @@
 Created: 2026-05-16 18:42 UTC
 Working dir: /home/dev/api-gateway
 Status: in-progress
+Base commit: 3c8a91f4d2e8b9c0a1f5e7d3b2c4e6a8f9d0c1b3
+Working tree: dirty (1 file — see Verification)
+Branch: rate-limiter-fix
 
 ## Goal
 Ship a token-bucket rate limiter for the API gateway (100 req/sec per API key, burst of 20) in `src/middleware/rateLimiter.ts`. Two known bugs to close before merge: a `Date.now()` non-monotonic clock issue (fixed) and a TOCTOU race in `take()` (in progress).
@@ -27,15 +30,16 @@ Reordering `take()` to do the token decrement synchronously *before* the `await 
 - Considered a mutex / async-lock library for the race — rejected as overkill given the reorder works.
 
 ## Verification before resuming
-Run these to confirm state hasn't drifted since this doc was written:
+Run these to confirm state hasn't drifted since this doc was written. The first three are mandatory:
 
 ```bash
-git status
-git branch --show-current
+git rev-parse HEAD         # Expected: 3c8a91f4d2e8b9c0a1f5e7d3b2c4e6a8f9d0c1b3
+git status --porcelain     # Expected: " M src/middleware/rateLimiter.ts"
+git branch --show-current  # Expected: rate-limiter-fix
 npm test -- rateLimiter
 ```
 
-Expected: on branch `rate-limiter-fix`, working tree shows uncommitted changes in `src/middleware/rateLimiter.ts` around line 88, all tests pass except possibly a not-yet-written concurrency test.
+Expected: all tests pass except possibly a not-yet-written concurrency test.
 
 ## Next steps
 1. Open [src/middleware/rateLimiter.ts:88](src/middleware/rateLimiter.ts:88), wrap the `await this.persistBucket()` in try/catch, re-increment `bucket.tokens` on catch, and rethrow.
