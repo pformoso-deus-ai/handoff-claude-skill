@@ -4,23 +4,31 @@ A Claude Code skill that captures the state of a long session into a structured 
 
 ## Install
 
-Copy the skill into your local Claude Code skills directory.
-
 **macOS / Linux**
 
 ```bash
-mkdir -p ~/.claude/skills/handoff
-cp handoff/SKILL.md ~/.claude/skills/handoff/
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/pformoso-deus-ai/handoff-claude-skill/main/install.sh)"
 ```
 
 **Windows (PowerShell)**
 
 ```powershell
-New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.claude\skills\handoff" | Out-Null
-Copy-Item handoff\SKILL.md "$env:USERPROFILE\.claude\skills\handoff\"
+iwr -useb https://raw.githubusercontent.com/pformoso-deus-ai/handoff-claude-skill/main/install.ps1 | iex
 ```
 
-Start a fresh Claude Code session — the skill is picked up automatically. Only `handoff/SKILL.md` ships; everything else in this repo is for authoring and iterating on the skill itself.
+The installer copies the skill into `~/.claude/skills/handoff/` (or `$env:USERPROFILE\.claude\skills\handoff\` on Windows).
+
+**First-time install**: restart Claude Code (or close and reopen any session) so the file watcher picks up the new skill directory. After that, edits to the skill hot-reload mid-session without a restart.
+
+**Pin a version** by setting `HANDOFF_REF` to any branch, tag, or commit:
+
+```bash
+HANDOFF_REF=v0.1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/pformoso-deus-ai/handoff-claude-skill/main/install.sh)"
+```
+
+**Inspect before running** (recommended for any `curl | bash` pattern): the scripts are [install.sh](install.sh) and [install.ps1](install.ps1) in this repo. They download `handoff/SKILL.md` into the skills directory and print a restart hint if needed.
+
+**Manual install** — if you'd rather skip the script, the skill is the single file `handoff/SKILL.md`. Copy it to `~/.claude/skills/handoff/SKILL.md` directly.
 
 ## Use
 
@@ -61,10 +69,4 @@ If verification passes, you'll get a three-line acknowledgement (goal / current 
 
 ## Updating
 
-After pulling new changes from this repo:
-
-```bash
-cp handoff/SKILL.md ~/.claude/skills/handoff/
-```
-
-Restart any open Claude Code session for the new version to load.
+Re-run the same install command. The script overwrites `SKILL.md` with the latest from the pinned ref (default `main`); open Claude Code sessions hot-reload the change without a restart.
