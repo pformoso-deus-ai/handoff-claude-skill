@@ -166,6 +166,24 @@ Stop there. Do not commit to git. Do not preemptively start the next task.
 
 Default: read `HANDOFF.md` from the working directory root. If the user names a different path, use that. If the file is missing, say so and ask the user where it is — do not guess or scan the filesystem.
 
+### Step 1.5 — Environment readiness
+
+Before running the doc's verification commands, confirm that environment dependencies which live *outside* git are present in this working tree. Git worktrees inherit checked-in config but not machine-local artifacts, so a fresh worktree can read `HANDOFF.md` correctly while still missing parts of the reasoning environment the resumer expects.
+
+Run the checks below in order. Each check has the form: *detect → repair if safe → otherwise surface and ask*.
+
+**CodeGraph index** (if `.codegraph/config.json` exists in the working dir):
+- Detect: is `.codegraph/codegraph.db` present and non-empty?
+- If missing:
+  - Look for an existing `.db` in sibling worktrees of the same repo (`../*/.codegraph/codegraph.db`).
+  - If found → copy the three files (`codegraph.db`, `codegraph.db-wal`, `codegraph.db-shm` — all three are needed for SQLite WAL consistency) into `.codegraph/`, then run `codegraph sync` to update against the current working tree's diff. This is fast (seconds) and safe; do it without prompting.
+  - If no sibling `.db` exists → ask the user before running `codegraph init -i`. A cold index can take several minutes on a large repo, and the user may prefer to defer or skip CodeGraph for this session.
+- After bootstrap, **explicitly tell the user**: the `.db` is ready, but the MCP server only inspects it at session start, so the `codegraph_*` tools will not be loaded until the session is restarted. Suggest finishing the resume (Steps 2–4) first and restarting after the acknowledgement — that way the user keeps the orientation in chat across the restart.
+
+If `.codegraph/config.json` is absent, the project hasn't adopted CodeGraph; skip this check.
+
+(Additional checks can be appended here as the team identifies more out-of-git environment dependencies — e.g., Docker services up, `.env` present, generated SDKs in place. Same shape: detect, repair if safe, surface otherwise.)
+
 ### Step 2 — Verify
 
 Run the `Verification before resuming` commands per the reader obligations above. Pass → continue. Fail or divergent → stop and surface.
